@@ -1,0 +1,238 @@
+```html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEX Agent Studio - Compilador de Instrucciones IA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&display=swap');
+        
+        body {
+            background-color: #0f172a;
+            color: #f1f5f9;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .code-font {
+            font-family: 'Fira Code', monospace;
+        }
+
+        .aex-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .aex-card:hover {
+            border-color: #38bdf8;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+        }
+
+        .gradient-text {
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tensor-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 4px;
+        }
+
+        .tensor-cell {
+            height: 20px;
+            background: #334155;
+            border-radius: 2px;
+            font-size: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-10 text-center">
+            <h1 class="text-4xl font-bold gradient-text mb-2">AEX Agent Studio</h1>
+            <p class="text-slate-400">Entorno de creación y ejecución para archivos .aex (Agent Executable)</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Panel de Diseño -->
+            <section class="space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-semibold">Diseñador de Flujo Cognitivo</h2>
+                    <button onclick="addBlock()" class="bg-sky-600 hover:bg-sky-500 px-4 py-2 rounded-lg text-sm font-medium transition">
+                        + Añadir Bloque
+                    </button>
+                </div>
+
+                <div id="blocks-container" class="space-y-4">
+                    <!-- Los bloques se insertarán aquí -->
+                </div>
+
+                <div class="pt-4 border-t border-slate-700">
+                    <button onclick="compileAEX()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-xl font-bold text-lg shadow-lg transition">
+                        COMPILAR A .AEX
+                    </button>
+                </div>
+            </section>
+
+            <!-- Panel de Resultados / Visualización de Datos -->
+            <section class="space-y-6">
+                <h2 class="text-xl font-semibold">Salida Binaria (Vista de Agente)</h2>
+                
+                <div id="output-view" class="aex-card rounded-xl p-6 h-[500px] overflow-y-auto hidden">
+                    <div class="mb-6">
+                        <h3 class="text-sky-400 text-xs uppercase tracking-widest font-bold mb-2">Metadata Header</h3>
+                        <div class="bg-slate-900 p-4 rounded border border-slate-700 code-font text-xs">
+                            <div class="flex justify-between"><span>FormatID:</span> <span class="text-green-400">0x414558</span></div>
+                            <div class="flex justify-between"><span>Version:</span> <span class="text-green-400">1.0.4-β</span></div>
+                            <div class="flex justify-between"><span>AgentSignature:</span> <span class="text-amber-400" id="sig-hex">Generating...</span></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <h3 class="text-sky-400 text-xs uppercase tracking-widest font-bold mb-2">Cognitive Payload (Tensor Stream)</h3>
+                        <div id="tensor-stream" class="space-y-4">
+                            <!-- Los tensores compilados aparecerán aquí -->
+                        </div>
+                    </div>
+
+                    <div class="pt-4">
+                        <button onclick="downloadAEX()" class="text-xs text-slate-500 hover:text-white underline">
+                            Descargar archivo de respaldo .aex.bin
+                        </button>
+                    </div>
+                </div>
+
+                <div id="empty-state" class="aex-card rounded-xl p-12 flex flex-col items-center justify-center text-center">
+                    <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                        <svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <p class="text-slate-400">Define bloques en el panel izquierdo para generar el flujo de datos para la IA.</p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Modal de Feedback (sustituye al alert) -->
+    <div id="custom-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center hidden z-50">
+        <div class="bg-slate-800 p-8 rounded-2xl max-w-sm w-full border border-slate-700 text-center">
+            <div id="modal-icon" class="mb-4 text-sky-400"></div>
+            <h3 id="modal-title" class="text-xl font-bold mb-2"></h3>
+            <p id="modal-desc" class="text-slate-400 mb-6"></p>
+            <button onclick="closeModal()" class="bg-sky-600 px-6 py-2 rounded-lg">Entendido</button>
+        </div>
+    </div>
+
+    <script>
+        let blockCount = 0;
+        const blockTypes = [
+            { id: 'input', label: 'Entrada de Datos', color: 'border-l-green-500' },
+            { id: 'proc', label: 'Procesamiento Core', color: 'border-l-sky-500' },
+            { id: 'logic', label: 'Lógica Condicional', color: 'border-l-amber-500' },
+            { id: 'output', label: 'Salida de Agente', color: 'border-l-indigo-500' }
+        ];
+
+        function addBlock() {
+            blockCount++;
+            const container = document.getElementById('blocks-container');
+            const type = blockTypes[Math.floor(Math.random() * blockTypes.length)];
+            
+            const div = document.createElement('div');
+            div.className = `aex-card p-4 rounded-lg border-l-4 ${type.color} relative animate-slide-in`;
+            div.id = `block-${blockCount}`;
+            div.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500">${type.label}</span>
+                    <button onclick="removeBlock('${div.id}')" class="text-slate-500 hover:text-red-400">✕</button>
+                </div>
+                <input type="text" placeholder="Instrucción en lenguaje natural..." class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm focus:ring-1 focus:ring-sky-500 outline-none">
+                <div class="mt-2 text-[10px] text-slate-500 flex gap-2">
+                    <span>Block ID: ${Math.random().toString(16).slice(2, 8)}</span>
+                    <span>• Type: ${type.id.toUpperCase()}</span>
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+        function removeBlock(id) {
+            document.getElementById(id).remove();
+        }
+
+        function generateTensor() {
+            let cells = '';
+            for (let i = 0; i < 32; i++) {
+                const val = (Math.random() * 2 - 1).toFixed(2);
+                const opacity = Math.abs(val);
+                cells += `<div class="tensor-cell" style="background: rgba(56, 189, 248, ${opacity})">${val}</div>`;
+            }
+            return cells;
+        }
+
+        function compileAEX() {
+            const blocks = document.querySelectorAll('#blocks-container > div');
+            if (blocks.length === 0) {
+                showModal("Sin Instrucciones", "Debes añadir al menos un bloque para compilar el archivo.", "⚠️");
+                return;
+            }
+
+            document.getElementById('empty-state').classList.add('hidden');
+            document.getElementById('output-view').classList.remove('hidden');
+            
+            // Simular firma
+            document.getElementById('sig-hex').innerText = '0x' + Array.from({length: 32}, () => Math.floor(Math.random() * 16).toString(16)).join('');
+
+            const stream = document.getElementById('tensor-stream');
+            stream.innerHTML = '';
+
+            blocks.forEach((block, index) => {
+                const label = block.querySelector('span').innerText;
+                const inputVal = block.querySelector('input').value || "Default Op";
+                
+                const tensorDiv = document.createElement('div');
+                tensorDiv.innerHTML = `
+                    <div class="text-[10px] text-slate-500 mb-1 flex justify-between">
+                        <span>BLOQUE ${index + 1}: ${label}</span>
+                        <span>ENC: [${inputVal.substring(0, 10)}...]</span>
+                    </div>
+                    <div class="tensor-grid">
+                        ${generateTensor()}
+                    </div>
+                `;
+                stream.appendChild(tensorDiv);
+            });
+
+            showModal("Compilación Exitosa", "Las instrucciones han sido transformadas en tensores de alta dimensión listos para la IA.", "✅");
+        }
+
+        function showModal(title, desc, icon) {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-desc').innerText = desc;
+            document.getElementById('modal-icon').innerText = icon;
+            document.getElementById('custom-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('custom-modal').classList.add('hidden');
+        }
+
+        function downloadAEX() {
+            showModal("Descarga simulada", "En un entorno real, esto guardaría un flujo binario .aex en tu sistema.", "💾");
+        }
+
+        // Bloques iniciales de ejemplo
+        window.onload = () => {
+            addBlock();
+            addBlock();
+        };
+    </script>
+</body>
+</html>
+
+```
